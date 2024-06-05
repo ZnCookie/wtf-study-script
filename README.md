@@ -1,1 +1,2 @@
 # wtf-study-script
+:)
