@@ -8,7 +8,6 @@ fi
 
 # 安装BIND
 dnf install bind bind-chroot bind-utils -y
-clear
 
 # 备份named.conf
 cp -n /etc/named.conf /etc/named.conf.bak
@@ -16,21 +15,23 @@ cp -n /etc/named.conf /etc/named.conf.bak
 # 修改allow-query为any，修改dnssec-validation为no
 sed -i -e 's/allow-query     { \(.*\); };/allow-query     { any; };/g' -e 's/dnssec-validation yes;/dnssec-validation no;/g' -e 's/listen-on port 53 { 127.0.0.1; };/listen-on port 53 { any; };/g' /etc/named.conf
 
-# 读取用户输入的域名
+# 读取用户输入的域名和IP
 read -p "请输入域名（例如 example.com）: " DOMAIN
+read -p "请输入IP（例如 1.43.168.192）：" IP_ADDRESS
+read -p "请再输入IP（例如 192.168.43.1）：" IP_ADDRESS_TRUE
 echo ""
 
 # 创建区域配置文件named.zones，添加正向解析和反向解析
-echo "我们新建了 /etc/named.zones 并在里面添加了一些东西..."
+echo "我们新建了 /etc/named.zones 并在里面添加了一些东西"
 cat > /etc/named.zones << EOF
-zone "$DOMAIN" IN {
+zone "${DOMAIN}" IN {
 	type master;
-	file "$DOMAIN.zone";
+	file "${DOMAIN}.zone";
 	allow-update { none; };
 };
-zone "1.10.168.192.in-addr.arpa" IN {
+zone "${IP_ADDRESS}.in-addr.arpa" IN {
         type master;
-        file "1.10.168.192.zone";
+        file "${IP_ADDRESS}.zone";
         allow-update { none; };
 };
 EOF
@@ -42,8 +43,8 @@ if ! grep -q 'include "/etc/named.zones";' /etc/named.conf; then
 fi
 
 # 创建正向解析声明文件
-echo "新建了 /var/named/$DOMAIN.zone 正向解析声明文件，您可能需要修改它(添加解析记录)"
-cat > "/var/named/$DOMAIN.zone" << EOF
+echo "新建了 /var/named/${DOMAIN}.zone 正向解析声明文件"
+cat > "/var/named/${DOMAIN}.zone" << EOF
 \$TTL 1D
 @	IN SOA  @ rname.invalid. (
                                   	0	; serial
@@ -51,11 +52,15 @@ cat > "/var/named/$DOMAIN.zone" << EOF
                                         1H	; retry
                                         1W	; expire
                                         3H )    ; minimum
+@	IN	NS	dns.${DOMAIN}.
+dns	IN	A	${IP_ADDRESS_TRUE}
+WWW1	IN	A	${IP_ADDRESS_TRUE}
+WWW2	IN	A	${IP_ADDRESS_TRUE}
 EOF
 
 # 创建反向解析声明文件
-echo "新建了 /var/named/1.10.168.192.zone 反向解析声明文件，您可能需要修改它(添加解析记录)"
-cat > "/var/named/1.10.168.192.zone" << EOF
+echo "新建了 /var/named/${IP_ADDRESS}.zone 反向解析声明文件"
+cat > "/var/named/${IP_ADDRESS}.zone" << EOF
 \$TTL 1D
 @	IN SOA  @ rname.invalid. (
                                   	0	; serial
@@ -63,24 +68,20 @@ cat > "/var/named/1.10.168.192.zone" << EOF
                                         1H	; retry
                                         1W	; expire
                                         3H )    ; minimum
+@	IN NS	dns.${DOMAIN}.
+1	IN PTR	dns.${DOMAIN}.
+1	IN PTR  www1.${DOMAIN}.
+1       IN PTR  www2.${DOMAIN}.
 EOF
-
-echo "您可以参考 /var/named 下的 named.localhost 和 named.loopback"
-echo ""
-echo "注意:你必须有一个NS记录"
-echo "NS/NX/CNAME记录没有设置对应的A/AAAA记录时会导致服务启动失败"
-echo ""
-
 
 # 设置防火墙放行&修改配置文件权限
 echo "添加防火墙规则..."
 firewall-cmd --permanent --add-service=dns
-echo ""
 echo "重载防火墙配置..."
 firewall-cmd --reload
 chgrp named /etc/named.conf /etc/named.zones
-chgrp named /var/named/$DOMAIN.zone /var/named/1.10.168.192.zone
+chgrp named /var/named/${DOMAIN}.zone /var/named/${IP_ADDRESS}.zone
 
-echo "配置完成后，使用 systemctl restart named 重启服务"
-echo "正常来说不应该输出任何内容"
-echo "使用 systemctl status named 可以查看具体情况"
+# 重启服务
+echo "配置完成，使用 systemctl restart named 重启服务"
+systemctl restart named
