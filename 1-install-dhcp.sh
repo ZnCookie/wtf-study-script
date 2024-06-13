@@ -16,6 +16,10 @@ cp -n /etc/dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf.bak
 read -p "请输入DHCP服务工作的网段（例如 192.168.43.）: " IP_ADDRESS
 echo ""
 
+# 读取用户输入的MAC地址
+read -p "请输入固定IP的MAC地址（例如 00:50:56:31:F5:7B）: " MAC_ADDRESS
+echo ""
+
 # 配置dhcp-server
 cat > /etc/dhcp/dhcpd.conf << EOF
 subnet ${IP_ADDRESS}0 netmask 255.255.255.0 {	#设置子网地址和子网掩码
@@ -27,7 +31,7 @@ subnet ${IP_ADDRESS}0 netmask 255.255.255.0 {	#设置子网地址和子网掩码
   max-lease-time 7200;	#最大租约时间
 }
 host Client2 {	#固定IP分配
-  hardware ethernet 00:0c:29:08:5b:ca;	#MAC地址
+  hardware ethernet ${MAC_ADDRESS};	#MAC地址
   fixed-address ${IP_ADDRESS}105;	#固定IP
 }
 EOF
@@ -42,5 +46,5 @@ systemctl status dhcpd
 clear
 echo "配置文件在/etc/dhcp/dhcpd.conf"
 echo "备份在/etc/dhcp/dhcpd.conf.bak"
-echo "默认采用的子网为${IP_ADDRESS}0/24，你可能需要根据实际情况修改配置文件"
+echo "采用的子网为${IP_ADDRESS}0/24，为${MAC_ADDRESS}添加了固定IP:${IP_ADDRESS}105"
 echo "注意：如果dhcpd报错，请*首先*检查当前服务器配置的IP地址！"
